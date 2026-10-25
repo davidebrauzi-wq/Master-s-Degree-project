@@ -1,0 +1,61 @@
+clear all
+close all
+clc
+
+% number of episodes 
+numEpisodes = 1000; 
+epsilon = 0.1;
+alpha = 1e-2;
+gamma = 1;
+
+% boundaries of the state space
+X = [-1.2, 0.5];
+V = [-0.07, 0.07];
+
+% action space
+A = 2;
+% we have continuous state space 
+% we implement tile coding for function approximation
+N = 3; % number of subdivision for each axis
+M = 6; % number of grids
+
+% dimension of weights
+d = (N+1)^2*M*A;
+
+% approximation for state space
+w = randn(d,1);
+
+% ti
+
+for e = 1:numEpisodes
+    % initialize episode
+    s = [0, 0];
+    % take epsilon greedy action
+    a = eps_greedy(s, w, X, V, N, M, A, epsilon);
+    % compute current vector of features
+    x = state_action_features(s, a, X, V, N, M, A);
+    % initialize isTerminal
+    isTerminal = false;
+    while isTerminal == 0
+        % apply action and measure sp and r
+        [sp, r, isTerminal] = mc_dynamics(s, a, X, V);
+        if isTerminal
+            % Update weights based on the reward received
+            w = w + alpha*(r - w'*x)*x ;
+        else
+            % precommitment of next action
+            ap = eps_greedy(sp, w, X, V, N, M, A, epsilon);
+            % compute next vector of features
+            xp = state_action_features(sp, ap, X, V, N, M, A);
+            % temporal difference error
+            delta = r + w'*(gamma*xp - x);
+            % apply update
+            w = w + alpha*delta*x;
+
+            % go to next state and action
+            s = sp;
+            a = ap;
+            x = xp;
+        end
+    end
+end
