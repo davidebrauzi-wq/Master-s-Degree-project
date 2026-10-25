@@ -1,0 +1,4 @@
+1)Codici commentati e funzionanti: V
+2)Readme aggiornato: V
+3)Documento corretto: v
+4)Assicurarsi che la cartella da inviare contenga il mio nome: v

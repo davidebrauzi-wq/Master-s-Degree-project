@@ -1,0 +1,315 @@
+##Componiamo l'algoritmo di Shifting bottleneck;
+##Le varie procedure di cui è composto l'algoritmo vengono richiamate mediante
+##i relativi .dat per rendere il codice più pulito
+
+
+##STEP 1: DEFINIZIONE STRUTTURA GRAFO RETICOLARE (GRAFO DISG.)##
+#scriviamo il codice per estrapolare le matrici:
+#A: adiacenza attività-attività.
+#B: incidenza job-macchinari.
+
+#calcolo del numero di operazioni
+param num_op{J}; # operazioni di cui e composto un job
+for {j in 1..n} {
+	let num_op[j] := 0;
+	for {h in M} {
+		if P[j,2*h] >= 1 then let num_op[j] := num_op[j] + 1;
+	}
+}	
+ 
+param N; #numero operazioni vere da completare (nodi nella AON)
+let N := sum{j in J} num_op[j];
+
+param tieni_traccia{M}; # mi tiene traccia dei vari r per test algoritmo 
+param SCHED{M,J}; # matrice che tiene traccia delle schedule
+
+set L ordered default {}; # set che serve per orientare gli archi cong.
+
+## DEFINISCI MATRICI ##
+param A{{1..N+2},{1..N+2}}; # matrice di ad. attività
+let {i in {1..N+2},j in {1..N+2}} A[i,j] := 0;
+
+param B{M,{1..N+2}}; # matrice di inc macchine attività
+let {i in M ,j in {1..N+2}} B[i,j] := 0;
+
+param p{{1..N+2}}; # vettore dei pesi sui nodi
+let p[1] := 0; # peso nodo sorg = 0
+let p[N+2] := 0; # peso nodo pozzo = 0
+
+##SPDG anche nella matrice B includo i nodi fittizi (s e t)##
+param last; # parametro ausiliario per la scrittura delle matrici
+let last := 2;
+
+for {j in 1..n} {
+	let A[1,last] := 1; # arco da s alla prima attivita della catena
+	let last := last;
+	for {h in M} {
+		if P[j,2*h] >= 1 then { # attivita non fittizia
+			let p[last] := P[j,2*h];
+			let B[P[j,2*h-1]+1 , last] := 1;
+			if h <= num_op[j]-1 then {
+				let A[last, last+1] := 1;
+			}
+			else let A[last,N+2] := 1;
+			let last := last + 1; # incrementa seriale
+		}
+ 	}
+}
+#display A;
+# Scrivo la matrice A su file csv per disegnare il grafo in MATLAB
+printf "\n" > matr_ad.csv;
+printf "," > matr_ad.csv;
+for {j in {1..N+2}} printf "%i,",j > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+for {i in {1..N+2}} {
+	printf "%i,",i > matr_ad.csv;
+	for {j in {1..N+2}} {
+		printf "%i,",A[i,j] > matr_ad.csv;
+	}
+	printf "\n" > matr_ad.csv;
+}
+# lascio spazio per le righe successive nel csv
+# r e d servono per l'aggiornamento del grafo
+printf "\n" > matr_ad.csv;
+printf "r e d" > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+
+
+#Scrivo una matrice di inc. job attivita (serve per ricostruire schedula)
+param C{J,{2..N+1}}; # matrice di inc job-attivita
+let {i in J, j in {2..N+1}} C[i,j] := 0;
+let last := 2;
+for {j in J} { 
+	for {i in {1..num_op[j]}} {
+		let C[j,last] := 1;
+		let last := last + 1;
+	}
+}
+
+##STEP 2: PROCEUDRA ALGORITMICA##
+# Anzitutto importo il modello 1.rj.Lmax
+model 1.rj.Lmax.mod;
+let n_primo := n; # numero di operazioni che incidono su un macchinario al più
+option solver Gurobi;
+option gurobi_options 'seed = 42';
+
+##INIZIALIZZAZIONE##
+# Parametri procedura algoritmica
+# Inizialmente non ci sono macchine schedulate.
+param LB; # calcolato con procedura forward
+param LB3; # calcolato con cliques
+
+
+param delta; # parametro per aggiornamento bottleneck
+let delta := -100;
+param target;
+
+param btnk; # parametro che identifica l'indice della macchina btnk
+set M_sched ordered default {}; # insieme ordinato macchine schedulate
+# Il comando union mette gli elementi nella coda di un set ordinato (coda)
+# Inizialmente non ci sono macchine schedulate.
+
+
+param m_primo; # parametro per tenere conto del #op svolte da macchina bottleneck
+# serve ora un vettore per avere la corrispondenza tra op nel grafo e schedula.
+# La risoluzione di 1|rj|Lmax ha come soluzione vettore indicizzato da 1 in poi
+# Per orientare gli archi disgiuntivi serve l'ID della attivita
+param corr{{1..m_primo}}; # salvo corrisponenza indice sched (problema 1|rj|Lmax) e indice operazione 
+
+# Definisco i parametri che serviranno nel ciclo while
+
+# Parametri ord topologico
+set S ordered default {}; # Serve per ordinamento topologico
+param f{{1..N+2}}; # vettore ordinamento topologico
+param succ; # serve per aggiornamento vettore ordinamento topologico
+param k; # parametro ausiliario posizione
+param lista{{1..N+2}}; # vettore dinamico gradi interni
+
+# Parametri forward-backward
+param r{{1..N+2}}; # vettore earliest start time
+param d{{1..N+2}}; # vettore latest finish time
+
+let r[1] := 0; # inizializzo nodo s
+
+##ALGORITMO##
+repeat until card(M_sched) == m {
+	# Fase(1): Calcolo LB2
+	# Fase(1.1 - 1.2a): Ordinamento topologico + Forward
+	# Inserisco script che esegue ordinamento topologico e forward
+	data "ORD_PIU_FORW.dat";
+	display M_sched;
+	# FASE(1.2b): Procedura Backward
+	let d[N+2] := r[N+2]; # Inizializzo d
+	# Inserisco script che esegue procedura Backward
+	data "BACKWARD.dat";
+	display d,f,r;
+	# scriviamo r e d dell iterazione corrente sul csv
+	for {i in {1..N+2}} printf "%i,%i,",r[i],d[i] > matr_ad.csv;
+	printf "\n" > matr_ad.csv;
+	#display r;
+	
+	if card(M_sched) == 1 then {
+		#display A;
+		let LB := r[N+2]; # Lower Bound del cammino critico
+		printf "############# \n";
+		printf "LB Calcolato \n";
+		printf "############# \n";
+	}
+	
+	if card(M_sched) >= 1 then {
+		let tieni_traccia[card(M_sched)] := r[N+2]; # aggiorno il valore di r dopo l'it k-esima
+	}
+	
+	##FINE FASE 1##
+	
+	# FASE(2): Calcolo Macchina Bottleneck
+	let delta := -1000;
+	for {i in M diff M_sched} {
+			#Scrivo l'istanza di 1.rj.Lmax
+			printf "Processamento macchina \n";
+			display i;
+			# includo procedura di risoluzione 1|rj|Lmax
+			data "BUILD_SOLVE_IST.dat";
+	}
+	# Aggiorno il vettore delle macchine sched
+	let M_sched := M_sched union {btnk};
+	display btnk;
+	display M_sched;
+	#display sched,corr;
+	## FINE FASE 2##
+	
+	# FASE(3): Orientamento archi disgiuntivi
+	data "ORIENTA_ARCHI_DISG.dat";
+	#display A;
+}
+
+
+##STEP 3: CALCOLO UB
+
+# FASE(1.2b): Procedura Backward
+data "ORD_PIU_FORW.dat";
+let d[N+2] := r[N+2]; # Inizializzo t
+data "BACKWARD.dat";
+display r,d;
+printf "UB =";
+display r[N+2];
+let tieni_traccia[m] := r[N+2];
+printf "\n";
+display LB;
+
+# Calcolo il Lower Bound sul Workload
+let LB3 := 0;
+# Prima esamino le catene di job
+for {j in J} {
+	let LB3 := max(LB3, sum{i in M} P[j,2*i]);
+}
+# sarebbe superfluo in quanto e dominato dal primo LB
+# Esamino ora i workload dei macchinari
+for {i in M} {
+	let LB3 := max(LB3, sum{j in {2..N+2}} B[i,j]*p[j]);
+}
+display LB3;
+# display tempo di calcolo
+display _total_solve_elapsed_time + _ampl_time;
+	 
+##STEP 4: RICOSTRUZIONE SOLUZIONE AMMISSIBILE PER ESPORTAZIONE SU .csv
+# Questi dati sono utilizzati per disegnare la schedula in MATLAB
+
+printf "\n Sol Shifting Bottlenekc \n" > risultati_prova.csv;
+printf "%i,",N > risultati_prova.csv;
+printf "%i,",n > risultati_prova.csv;
+printf "%i,",m > risultati_prova.csv;
+printf "%i,",r[N+2] > risultati_prova.csv;
+printf "\n attivita," > risultati_prova.csv;
+for {i in {2..N+1}} printf "%i,",i > risultati_prova.csv;
+printf "\n ES," > risultati_prova.csv;
+for {i in {2..N+1}} printf "%i,",r[i] > risultati_prova.csv;
+printf "\n compl_time," > risultati_prova.csv;
+for {i in {2..N+1}} printf "%i,",r[i] + p[i] > risultati_prova.csv;
+printf "\n M," > risultati_prova.csv;
+for {j in {2..N+1}} {
+	for {i in M} {
+		if B[i,j] == 1 then let succ := i;
+	}
+	printf "%i,",succ > risultati_prova.csv;
+}
+printf "\n J," > risultati_prova.csv;
+for {j in {2..N+1}} {
+	for {i in J} {
+		if C[i,j] == 1 then let succ := i;
+	}
+	printf "%i,",succ > risultati_prova.csv;
+}
+printf "\n \n \n \n \n \n \n" > risultati_prova.csv;
+
+# Ho scritto gli ES per graficare, ora passiamo alla schedula
+printf "INC JOB_ATT \n" > risultati_prova.csv;
+printf "attivita," > risultati_prova.csv;
+for {i in {2..N+1}} printf "%i,",i > risultati_prova.csv;
+printf "\n" > risultati_prova.csv;
+for {j in J} {
+	printf "%i,",j > risultati_prova.csv;;
+	for {i in {2..N+1}} printf "%i,",C[j,i] > risultati_prova.csv;
+	printf "\n" > risultati_prova.csv;
+}
+
+printf "\n \n" > risultati_prova.csv;
+printf "INC MACC_ATT \n" > risultati_prova.csv;
+printf "attivita," > risultati_prova.csv;
+for {i in {2..N+1}} printf "%i,",i > risultati_prova.csv;
+printf "\n" > risultati_prova.csv;
+for {j in M} {
+	printf "%i,",j > risultati_prova.csv;;
+	for {i in {2..N+1}} printf "%i,",B[j,i] > risultati_prova.csv;
+	printf "\n" > risultati_prova.csv;
+}
+
+# mi riporto le schedule su file csv
+for {i in {1..N+2}} printf "%i,%i,",r[i],d[i] > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+
+
+printf "\n" > matr_ad.csv;
+printf "SCHED" > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+printf "," > matr_ad.csv;
+for {j in {1..n}} printf "%i,",j > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+for {i in {1..m}} {
+	printf "%i,",i > matr_ad.csv;
+	for {j in {1..sum{j in 1..N+2}B[i,j]}} {
+		printf "%i,",SCHED[i,j] > matr_ad.csv;
+	}
+	printf "\n" > matr_ad.csv;
+}
+
+printf "\n" > matr_ad.csv;
+printf "M_sched" > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+for {i in 1..m} printf "%i,",member(i,M_sched) > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+printf "proc_time" > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+for {i in 1..N+2} printf "%i,",p[i] > matr_ad.csv;
+
+printf "\n" > matr_ad.csv;
+printf "macchinario_richiesto" > matr_ad.csv;
+printf "\n" > matr_ad.csv;
+for {j in 2..N+1} {
+	for {i in 1..m} if B[i,j] == 1 then printf "%i,",i > matr_ad.csv;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

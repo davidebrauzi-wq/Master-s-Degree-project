@@ -1,0 +1,47 @@
+# Costruisci e risolvi 1|rj|Lmax
+let succ := 1; # inizializza contatore 
+for {j in {2..N+1}} { # non considero att sorgente e pozzo
+	if B[i,j] == 1 then { # l'op richiede il macc i
+		let proc_time[succ] := p[j];
+		let release_date[succ] := r[j];
+		let due_date[succ] := d[j];
+		let succ := succ + 1;
+	}
+}
+if sum{j in {1..N+2}} B[i,j] < n then { # ho meno attivita sulla macchina i rispetto al numero di job
+	for {j in {succ..n}} { # introduco job fittizi altrimenti AMPL va in errore per le dimensioni dei parametri
+		let proc_time[j] := 0;
+		let release_date[j] := 0;
+		let due_date[j] := 10000;
+	}
+}
+#display proc_time, release_date, due_date;
+solve;
+#display Lmax;
+if Lmax >= delta + 1 then { #A parità di Lmax prendo la macchina con indice inferiore
+	let m_primo := n_primo;
+	let delta := Lmax; # aggiorno il delta
+	let btnk := i; # aggiorno macchina btnk
+	let succ := 1;
+	# solo se la macchina e bottleneck devo ricostruire schedula
+	for {j in {2..N+1}} { # salvo la corrispondenza
+		if B[i,j] == 1 then { # l'op richiede il macc i
+			let corr[succ] := j;
+			let succ := succ + 1;
+		}
+	}
+	if sum{j in {1..N+2}} B[i,j] < n then {
+		for {j in {succ..n}} { # introduco job fittizi altrimenti AMPL va in errore per le dimensioni dei parametri
+			let corr[j] := 0;
+		}
+	}
+	
+	# riscotruisco la schedula associando ai seriali (da 1 al numero di op sul macch)
+	# il numero delle attivita della rete
+	let L := {};
+	for {h in 1..n_primo} {
+		let k := sum{j in JOB: x[j,h] >= 0.99} j; # esistono soluzioni approx in cui 1 == 0.99999999
+		let L := L union {corr[k]};
+	}
+	display L;
+}

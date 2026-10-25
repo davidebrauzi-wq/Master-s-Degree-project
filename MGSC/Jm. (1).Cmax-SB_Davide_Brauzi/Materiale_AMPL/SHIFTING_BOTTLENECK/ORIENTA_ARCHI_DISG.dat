@@ -1,0 +1,11 @@
+# Procedura di orientamento archi disgiuntivi e aggiornamento schedule macchinari
+# Per prima cosa elimino gli eventuali job fittizi
+let L := L diff {0};
+# Non inserisco la chiusura transitiva
+for {a in {1..card(L)-1}} {
+		let A[member(a,L),member(a+1,L)] := 1;
+		let SCHED[btnk,a] := member(a,L);
+}
+# ultima attivita
+let SCHED[btnk,card(L)] := member(card(L),L);
+let L := {}; # reinizializzo L

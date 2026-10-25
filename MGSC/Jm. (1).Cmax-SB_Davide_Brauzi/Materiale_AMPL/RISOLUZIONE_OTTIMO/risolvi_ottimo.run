@@ -1,0 +1,71 @@
+reset;
+# anzitutto carico il modello
+model J..Cmax.mod; # formulazione disgiuntive graph DM nella tesina
+#model J..Cmax(TI_MIA).mod; # formulazione TI migliorata da me TI(2) nella tesina
+# model J..Cmax(time_indexed).mod; # formulazione TI vista a lezione TI(1) nella tesina
+#model J..Cmax(rank_based).mod; # formulazione rank_based RB nella tesina
+let n := 10;
+let m := 10;
+param time;
+option solver Gurobi;
+option gurobi_options "seed = 42";
+# imposto poi lo stesso seed
+option randseed 42; # imposto il seed casuale
+# Inizializzo parametri/sets per la procedura di generazione istanza
+set L ordered default {};
+let L := {0..m-1};
+set Q ordered default {};
+param random;
+param n_ist;
+let n_ist := 30;
+param valori{1..n_ist};
+#Vettori di UB a T forniti dalla Shifting Bottleneck per TI
+#data UBs_5x5_1-30.dat;
+#data UBs_5x5_30-60.dat;
+#data UBs_5x5_60-90.dat;
+param P{JOB,{1..2*m}}; # matrice P generata dalla procedura casuale
+#data progetto_prova.dat;
+for {t in {1..n_ist}} {
+	# Genero l istanza (nello stesso modo di sempre)
+	for {j in {1..n}} {
+		for {i in {1..m}} {
+			let random := floor(Uniform(1,m+2-i));
+			if random == m + 2 - i then let random := random - 1;
+			let Q := Q union {member(random,L)};
+			let L := L diff {member(random,L)};
+			let P[j,i*2-1] := member(card(Q),Q);
+			let P[j,i*2] := floor(Uniform(1,30));
+			#display L,Q;
+		}
+		let L := {0..m-1}; # ristoro L
+		let Q := {};
+	}
+	# Aggiorniamo i dati
+	let {j in JOB} num_oper[j] := m; # sono spdg istanze in cui ogni job attraversa ogni macch
+	for {j in JOB, h in OPERATION[j]} {
+		let mu[j,h] := P[j,h*2 - 1] + 1; # le meacchine sono indicizzate a partire da 0
+		let proc_time[j,h] := P[j,h*2];
+	}
+	let T := sum{j in JOB, h in OPERATION[j]} proc_time[j,h]; # Big-M classico
+	#let T := valori[t]; # big-M migliorato
+	# Calcolo parametri TI_MIA (da attivare nel caso della TI_MIA
+	#for {j in JOB} {
+	#	let phi := sum{h in OPERATION[j]} proc_time[j,h];
+	#	let r1[j,1] := 0;
+		
+	#	for {h in {2..num_oper[j]}} {
+	#		let r1[j,h] := sum {l in {1..h-1}} proc_time[j,l]; #devono finire almeno tutte le attività prec
+	#		let r2[j,h] := T - sum{l in {h..num_oper[j]}} proc_time[j,l]; #devono poter finire tutte le attivita da l in poi entro T
+	#	}
+	#	let r2[j,1] := T - sum{l in {1..num_oper[j]}} proc_time[j,l];
+	#}
+	solve;
+	# Riporto il valore ottimo
+	printf "\n %i,",Cmax > risultati_ottimo.csv;
+	let time := _total_solve_elapsed_time;
+	printf "%f,",time > risultati_ottimo.csv;
+	printf "%i,",_nvars > risultati_ottimo.csv;
+	printf "%i,",_ncons > risultati_ottimo.csv;
+	display t;
+	display time;
+}#fine ciclo for per risoluzione istanze

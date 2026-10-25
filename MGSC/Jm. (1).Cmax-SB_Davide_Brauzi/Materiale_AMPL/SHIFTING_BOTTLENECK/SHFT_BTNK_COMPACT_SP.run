@@ -1,0 +1,244 @@
+#Componiamo l'algoritmo di Shifting bottleneck;
+##Qui mettiamo ord topologico e procedura forward insieme (stesso .dat)
+##Questo script contiene anche la parte di generazione istanze;
+##Le istanze generate sono sempre le stesse (in quanto il seed è costante)
+
+reset;
+param n;
+param m;
+let n := 15;
+let m := 15;
+set J := {1..n};
+set M := {1..m};
+set M_primo := {1..2*m};
+param P{J,M_primo};
+param LB;
+param LB3;
+param t_sotto_p{M}; # tempo di calcolo 1.rj.Lmax alle varie iter
+let {i in M} t_sotto_p[i] := 0; # inizializzo
+printf "%i,",n > risultati_prova.csv;
+printf "%i,",m > risultati_prova.csv;
+printf "\n" > risultati_prova.csv;
+printf "risultati euristica \n" > risultati_prova.csv;
+printf "UB," > risultati_prova.csv;
+printf "LB," > risultati_prova.csv;
+printf "time," > risultati_prova.csv;
+printf "LB3," > risultati_prova.csv;
+printf "\n" > risultati_prova.csv;
+##STEP 1: DEFINIZIONE STRUTTURA GRAFO RETICOLARE (GRAFO DISG.)##
+#scriviamo il codice per estrapolare matrici A e B
+param num_op{J}; # operazioni di cui e composto un job
+param num_op_m{M}; # numero operazioni che competono per la generica macchina i
+param N; #numero operazioni da completare (nodi nella AON)
+param A{{1..N+2},{1..N+2}}; # matrice di ad. attività
+param B{M,{1..N+2}}; # matrice di inc macchine attività
+param C{J,{2..N+1}}; # matrice di inc job attivita
+param p{{1..N+2}}; # vettore dei pesi sui nodi
+param last; # parametro ausiliario per la scrittura delle matrici
+model 1.rj.Lmax.mod;
+let n_primo := n;
+option solver Gurobi;
+option gurobi_options "";
+
+option randseed 42;
+set M_sched ordered default {};
+param delta; # parametro per aggiornamento bottleneck
+param btnk; # parametro che identifica l'indice della macchina btnk
+param m_primo; # parametro per tenere conto del #op svolte da macchina bottleneck
+# serve ora un vettore per avere la corrispondenza tra op nel grafo e schedula.
+param corr{{1..m_primo}}; # salvo corr indice sched (problema 1|rj|Lmax) e indice operazione nell info reticolare
+param SCHED{M,J}; # matrice che tiene traccia delle schedule
+set L ordered default {}; # serve per popolare la matrice evitando eventuali attivita fittizie
+
+# Definisco i parametri che serviranno nel ciclo while
+
+# Parametri ord topologico
+set S ordered default {};
+param f{{1..N+2}}; # vettore ordinamento topologico
+param succ; # serve per aggiornamento vettore ordinamento topologico
+param k; # parametro posizione
+param lista{{1..N+2}}; # vettore dinamico gradi interni
+
+# Parametri forward-backward
+
+param r{{1..N+2}}; # vettore earliest start time
+param d{{1..N+2}}; # vettore latest finish time
+
+## Definisco i parametri che servono per generare l'istanza
+set G ordered default {};
+let G := {0..m-1};
+set Q ordered default {};
+param random;
+# data progetto_prova.dat;
+# Questo frammento di script genera le permutazioni
+
+for {t in {1..30}} {
+	let {i in M, j in J} SCHED[i,j] := 0;
+	display t; 
+	# Genero l istanza
+	
+	for {j in {1..n}} {
+		for {i in {1..m}} {
+			let random := floor(Uniform(1,m+2-i)); # numero intero casuale per prendere un elemento di G
+			if random == m + 2 - i then let random := random - 1;
+			let Q := Q union {member(random,G)}; # metto l'elemento in Q
+			let G := G diff {member(random,G)}; # tolgo l'elemento da G
+			# compilo la matrice sulla base dell'elemento inserito in Q
+			let P[j,i*2-1] := member(card(Q),Q); # macchina 
+			let P[j,i*2] := floor(Uniform(30,90)); # tempo di proc. random
+		}
+		let G := {0..m-1}; # ristoro G
+		let Q := {};
+	}
+	if t >= 1 then { # superfluo ma serve per "intercettare" istanze interessanti
+	#display P;
+	for {j in 1..n} {
+		let num_op[j] := 0;
+		for {h in M} {
+			if P[j,2*h] >= 1 then let num_op[j] := num_op[j] + 1;
+		}
+	}	
+	let N := sum{j in J} num_op[j];
+	#let r[1] := 0; # inizializzo nodo s
+	## DEFINISCI MATRICI ##
+	let {i in {1..N+2},j in {1..N+2}} A[i,j] := 0;
+	let {i in M,j in {1..N+2}} B[i,j] := 0;
+	let {i in M,j in {1..n}} SCHED[i,j] := 0;
+	let L := {};
+	let p[1] := 0; # peso nodo sorg = 0
+	let p[N+2] := 0; # peso nodo pozzo = 0
+	
+	##SPDG anche nella matrice B includo i nodi fittizi (s e t)##
+	let last := 2;
+	
+	for {j in 1..n} {
+		let A[1,last] := 1; # arco da s alla prima attivita della catena
+		#let last := last;
+		for {h in M} {
+			if P[j,2*h] >= 1 then {
+				let p[last] := P[j,2*h];
+				let B[P[j,2*h-1]+1 , last] := 1;
+				if h <= num_op[j]-1 then {
+					let A[last, last+1] := 1;
+				}
+				else let A[last,N+2] := 1;
+				let last := last + 1;
+			}
+	 	}
+	}
+	# calcolo il # di operazioni che deve gestire il macchinario i
+	for {i in M} {
+		let num_op_m[i] := sum{j in {1..N+1}} B[i,j];
+	}
+	#Scrivo una matrice di inc. job attivita (serve per ricostruire schedula)
+	let {i in J, j in {2..N+1}} C[i,j] := 0;
+	let last := 2;
+	for {j in J} { 
+		for {i in {1..num_op[j]}} {
+			let C[j,last] := 1;
+			let last := last + 1;
+		}
+	}
+	
+	##STEP 2: PROCEUDRA ALGORITMICA##
+	# Anzitutto importo il modello 1.rj.Lmax
+	
+	##INIZIALIZZAZIONE##
+	# Inizialmente non ci sono macchine schedulate.
+	let M_sched := {};
+	let delta := -1000;
+	
+	let S := {};
+	
+	let r[1] := 0; # inizializzo nodo s
+	
+	##ALGORITMO##
+	repeat until card(M_sched) == m {
+		# Fase(1): Calcolo LB1
+		# Fase(1.1 - 1.2a): Ordinamento topologico + Forward
+		# Inserisco script che esegue ordinamento topologico
+		data "ORD_PIU_FORW.dat";
+		display succ;
+		#display A;
+		#display r;
+		#display p;
+		#display M_sched;
+		# FASE(1.2b): Procedura Backward
+		let d[N+2] := r[N+2]; # Inizializzo d
+		# Inserisco script che esegue procedura Backward
+		data "BACKWARD.dat";
+		display f,r,d;
+		#display d;
+		#display r;
+		#printf "LB1 =";
+		#display r[N+2];
+		#printf "\n";
+		
+		if card(M_sched) == 1 then {
+			#display A;
+			let LB := r[N+2];
+			#printf "############# \n";
+			#printf "LB Calcolato \n";
+			#printf "############# \n";
+		}
+		##FINE FASE 1##
+		
+		# FASE(2): Calcolo Macchina Bottleneck
+		let delta := -1000;
+		for {i in M diff M_sched} {
+				#Scrivo l'istanza di 1.rj.Lmax
+				#printf "Processamento macchina \n";
+				display i;
+				data "BUILD_SOLVE_IST.dat";
+				let t_sotto_p[card(M_sched)+1] := t_sotto_p[card(M_sched)+1] + _solve_time;
+		}
+		# Aggiorno il vettore delle macchine sched
+		let M_sched := M_sched union {btnk};
+		display btnk;
+		display t;
+		display M_sched;
+		#display sched,corr;
+		## FINE FASE 2##
+		display L;
+		
+		# FASE(3): Orientamento archi disgiuntivi
+		data "ORIENTA_ARCHI_DISG.dat";
+		#display A;
+		# con questo frammento inserisco anche la chiusura transitiva
+		# In realta questa sarebbe evitabile in quanto l ord. topologico vede i predecessori
+	}
+	
+	##STEP 3: CALCOLO UB
+	
+	# FASE(1.2b): Procedura Backward
+	data "ORD_PIU_FORW.dat";
+	let d[N+2] := r[N+2]; # Inizializzo t
+	data "BACKWARD.dat";
+	#display r,d;
+	printf "UB =";
+	display r[N+2];
+	let LB3 := 0;
+	# Prima esamino le catene di job
+	for {j in J} {
+		let LB3 := max(LB3, sum{i in M} P[j,2*i]);
+	}
+	# Esamino ora i workload dei macchinari
+	for {i in M} {
+		let LB3 := max(LB3, sum{j in {2..N+2}} B[i,j]*p[j]);
+	}
+	# Scriviamo i risultati nel csv
+	## Mettiamo i risultati nel csv.
+	printf "\n %i,",r[N+2] > risultati_prova.csv;
+	printf "%i,",LB > risultati_prova.csv;
+	printf "%f,",_total_solve_elapsed_time + _ampl_elapsed_time > risultati_prova.csv;
+	printf "%i,",LB3 > risultati_prova.csv;
+	#for {i in M} printf "%f,",t_sotto_p[i]/(m-i+1) > risultati_prova.csv;
+	display SCHED;
+	display M_sched;
+	let {i in M} t_sotto_p[i] := 0; # reinizializzo
+	}
+}
+
+
+
+

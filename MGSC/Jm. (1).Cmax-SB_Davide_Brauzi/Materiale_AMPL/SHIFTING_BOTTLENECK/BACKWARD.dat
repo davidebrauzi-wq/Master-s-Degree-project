@@ -1,0 +1,10 @@
+let d[N+2] := r[N+2];
+for {a in {1..N+1}} {
+	let k := f[N+2-a]; # in questo modo ho esattamente il nodo nella posizione dell'ord topologico
+	let d[k] := 10000; # inizializzo a valore arb. alto
+	for {l in {2..N+2}} { # non considero s che non e successore di alcun nodo
+		if A[k,l] == 1 then { # ho arco uscente da k e dunque ho un successore
+			let d[k] := min(d[l] - p[l], d[k]);
+		}
+	}
+}

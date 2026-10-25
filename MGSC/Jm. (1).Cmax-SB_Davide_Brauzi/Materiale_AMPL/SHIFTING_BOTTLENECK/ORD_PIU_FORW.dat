@@ -1,0 +1,31 @@
+# File .dat che esegue ordinamento topologico e procedura forward.
+let r[1] := 0; # inizializzo nodo s
+
+##ALGORITMO##
+let succ := 0;
+# Inizializzo gradi interni
+for {j in 1..N+2} {
+	let lista[j] := sum{a in 1..N+2} A[a,j];
+	if lista[j] == 0 then let S := S union {j};
+}
+# Ord 
+repeat until card(S) == 0 {
+	let succ := succ + 1;
+	let k := first(S);
+	let S := S diff {k};
+	let f[succ] := k;
+	for {j in {1..N+2}} {
+		if A[k,j] == 1 then { # il nodo j è adiacente a k (ho arco entrante)
+			let lista[j] := lista[j] - 1;
+			if lista[j] == 0 then let S := S union {j};
+		}
+	}
+}
+# Procedura forward
+for {j in 2..N+2} {
+	let k := f[j];
+	let r[k] := 0;
+	for{i in 1..N+1: A[i,k] == 1} let r[k] := max(r[i] + p[i], r[k]); 
+}
+
+#display f;
