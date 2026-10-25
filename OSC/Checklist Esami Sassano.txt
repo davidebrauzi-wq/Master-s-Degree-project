@@ -1,0 +1,71 @@
+ESAME 24/01/2020:
+LQR a tempo discreto => FATTO
+Controllo ottimo a tempo continuo
+HJB.
+LQR ad orizzonte infinito ed esistenza soluzione ottima.
+
+
+
+ESAME 1/09/2021
+EX 1: RL => fatto e corretto
+EX 2: LQR tempo continuo orizzonte finito con parametro ed esistenza controllo ottimo => fatto e corretto
+EX 3: LQR tempo continuo orizzonte infinito => fatto e corretto 
+TH 1: Descrivere un problema di controllo ottimo LQ a tempo continuo su orizzonte infinito e
+dimostrare che la soluzione ottima `e stabilizzante.
+TH 2: Discutere il problema del tracking ottimo e della reiezione di disturbi noti.
+
+ESAME 5/11/2021
+EX 1: RL => fatto e corretto
+EX 2: LQR tempo continuo orizzonte infinito => fatto e corretto
+EX 3: Controllo ottimo inverso parametrico con funzione valore data => fatto e corretto.
+TH 1: Descrivere un problema di controllo ottimo LQ a tempo discreto e discutere i passi logici
+che permettono di derivare le condizioni che determinano la soluzione ottima.
+TH 2: Descrivere l’equazione di Hamilton-Jacobi-Bellman. Dimostrare che l’equazione HJB fornisce
+condizioni sufficienti di ottimalita	
+
+ESAME 8/06/2021
+EX 1: LQR tempo continuo orizzonte finito => fattp e corretto
+EX 2: RL => fatto e corretto
+EX 3: LQR tempo continuo orizzonte infinito => fatto e corretto
+TH 1: Descrivere un problema di controllo ottimo LQ a tempo discreto e discutere come si possa
+determinare la soluzione ottima.
+TH 2: Descrivere l'equazione di Hamilton-Jacobi-Bellman. Dimostrare che l'equazione HJB for-
+nisce condizioni sucienti di ottimalita.
+
+ESAME 19/07/2021
+EX 1: Sistema Hamiltoniano con matrice NON diag => fatto e corretto
+EX 2: LQR tempo continuo orizzonte infinito, risolvi ARE => fatto e corretto
+EX 3: LQR tempo discreto parametrico => fatto e corretto
+TH 1: Discutere il Principio di Ottimalita e dire come puo essere usato per derivare l'equazione
+di HJB (CN di ottimalità).
+TH 2: Descrivere il problema del Regolatore Lineare Quadratico su orizzonte infinito e dimostrare che il limite della soluzione ottima su orizzonte finito fornisce la soluzione ottima su orizzonte infinito.
+
+ESAME 20/07/2022
+EX1: Mitter e Kleinman => fatto e corretto
+EX2: Sistema Hamiltoniano => fatto e corretto
+EX3: Controllo ottimo inverso => fatto e corretto.
+
+ESAME 23/06/2022
+EX1: LQR tempo discreto parametrico scalare => fatto e corretto
+EX2: RL parametrico => fatto e corretto
+EX3: Controllo ottimo inverso scalare => fatto e corretto
+
+ESAME 21/07/2023
+EX1: Sistema Ham => fatto e corretto
+EX2: Controllo ottimo inverso => fatto e corretto
+
+ESAME 3/07/2023
+EX 1: Riccati => fatto e corretto
+EX 2: RL con equazione di Bellman Stocastica => fatto e corretto
+
+ESAME 4/09/2023
+EX 1: Valutazione costo di una qualsiasi politica (stabilizzante) => fatto e corretto
+EX 2: Sistema Hamiltoniano con n = 2 => fatto e corretto
+
+ESAME 21/01/2022
+Controllo ottimo a tempo continuo
+LQR a tempo discreto => FATTO
+HJB
+LQR ad orizzonte infinito ed esistenza soluzione ottima.
+
+
