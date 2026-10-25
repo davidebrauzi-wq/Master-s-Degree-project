@@ -8,4 +8,7 @@ Project_MRL: Motion Planning in an environment with obstacles for a 2 DOF planar
 MGSC: project in Optimization for complex industrial systems:
   -Implementation of Heuristic "Shifting Bottleneck Algorithm" for Job Shop problem.
 
-
+There are also Relaeses about (they have their own readme):
+Analysis and Synthesis of Non linear systems.
+Robotics.
+Adaptive and Robust Control.
